@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="/static/css/home.css"/>
+  <link rel="stylesheet" href="/static/css/file-upload.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.js"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script src="/static/js/roslib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.min.js"></script>
+
+  <script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js" defer></script>
+  <script src="{{ url_for('static', filename='js/file-upload.js') }}" defer></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.min.js"></script>
+  
+  <!-- used for 3d lidar graph -->
+  <script src="https://cdn.jsdelivr.net/npm/scichart/index.min.js" crossorigin="anonymous"></script>
+
+
+  <script src="/static/js/scale-graphs.js" defer></script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+
+<body>
+  <!-- this is where the button controls will be (record, kill, replay, start script, file selection and reset chart) -->
+  <nav class="nav-control">
+    <div class="assignment-name">
+      Poli<span class="slant">MOVE</span>-MSU
+    </div>
+    <div class="nav-buttons">
+      <div class="record-btn-container">
+        <button class="buttons" id="record">
+          <img src="/static/images/record.jpg" alt="Record" />
+        </button>
+        <div id="recording-text">RECORDING</div>
+      </div>
+      <div class = "replay-btn-container">
+        <button class="buttons" id="replay">
+          <img src="/static/images/new_replay.png" alt="Replay" />
+        </button>
+        <div id="replaying-text">REPLAYING</div>
+      </div>
+      <button class="buttons" id="play">
+        <img src="/static/images/play.webp" alt="Play" />
+      </button>
+      <button class="buttons" id="start">Start ROS Nodes</button>
+      </button>
+      <button class="buttons" id="select">Select a ROS Bag</button>
+      </button>
+      <button class="buttons" id="reset">Reset Chart</button>
+    </div>
+
+
+    <a id="logo-box" href="https://www.indyautonomouschallenge.com/" title="IAC">
+      <img id="logo-img" src="/static/images/MSU_logo.png" alt="MSU_logo" />
+    </a>
+  </nav>
+
+  <div id="popup-record">The recording will begin in 9 seconds!</div>
+
+  <!-- This main container will contain the loopback, camera, and the steering wheel (possibly the map as well) -->
+  <div id="main-container">
+    <div class="side-item-1"> 
+      <!-- <p>Current Speed:</p><p id="curr_speed_display">0</p>
+      <p>Average Speed:</p><p id="curr_avgspeed_display">0</p>
+      <p>Runtime (IMU):</p><p id="runtime">00:00</p> -->
+      <div id="mapContainer5" class="online-map" style="display:block; width: 400px; height: 400px;"></div>
+
+    </div>
+
+    
+    <main class="middle-item" id="main-content">
+      <img id="live-img" src="" alt="Live Camera Feed" />
+    </main>
+    
+    <div class="side-item-2" class="steer_angle_div" id="steerangleVis" style="width: 50%;">
+      <img style="width: 100%; margin-bottom: 0;" class="steer_angle_image" src="../static/images/steerwheel.png">
+      <!-- <p class="steer_angle_text">0deg</p> -->
+    </div>
+  </div>
+
+
+  <!-- this is for my heatmap. it asks the user how far the heatmap should go (up to 10 meters) -->
+
+  <!-- <form method="POST">
+      <label for="span">Enter new span value (0 - 10,000mm):</label>
+      <input type="number" name="span" step="0.1" required>
+      <button type="submit">Update</button>
+  </form> -->
+  
+  <!-- {% if status_msg %} -->
+    <!-- <p>{{ status_msg }}</p> -->
+  <!-- {% endif %} -->
+
+  <!-- This is where all of our sensor graphs will be. You can mix and match what sensors you want -->
+  <nav class="telemetry-nav">
+    <section class="graphs">
+      <select id="dropdown1" class="dropdown">
+        <option value="none">None</option>
+        <option value="LiDar">LiDAR</option>
+        <option value="GNSS">GNSS</option>
+        <option value="GNSS_chart">GNSS chart</option>
+        <!-- <option value="OnlineMap">Online Map</option> -->
+        <option value="IMU">IMU</option>
+        <option value="IMU_chart">IMU chart</option>
+        <option value="BrakeThrottle">BrakeThrottle</option>
+        <!-- <option value="SteerAngle">Steering angle</option>
+        <option value="SpeedRuntime">Speed & Runtime</option>
+        <option value="3dlidar">3D lidar</option> -->
+      </select>
+
+      <canvas id="telemetryChart1" class="dynamic-chart" style="display:none;"></canvas>
+      <canvas id="lidarChart1" class="lidar-chart" style="display:none;"></canvas>
+      <div id="imu-container-1" class="imu-visualization" style="display:none;">
+        <p><strong>Pitch:</strong>-</p>
+        <p><strong>Roll:</strong>-</p>
+        <p><strong>Yaw:</strong>-</p>
+        <!-- <p><strong>Delta:</strong>-</p> -->
+      </div>
+      <div id="gnss-container-1" class="gnss-text" style="display:none;">
+        <p><strong>Latitude:</strong> <span id="gnss-lat-1">-</span></p>
+        <p><strong>Longitude:</strong> <span id="gnss-lon-1">-</span></p>
+      </div>
+      <canvas id="gnssChart1" class="gnss-chart" style="display:none;"></canvas>
+      <div id="mapContainer1" class="online-map" style="display:none; width: 20vw; height: 20vh; overflow: hidden;"></div>
+
+      <div id="imuChart1" class="imu-chart" style="display:none;"></div>
+
+      
+
+      <div id="Lidar3dscichart1" class="3d-lidar"  style="display:none; width: 100%; height: 100%;"></div>
+    </section>
+
+    <section class="graphs">
+      <select id="dropdown2" class="dropdown">
+        <option value="none">None</option>
+        <option value="LiDar">LiDAR</option>
+        <option value="GNSS">GNSS</option>
+        <option value="GNSS_chart">GNSS chart</option>
+        <!-- <option value="OnlineMap">Online Map</option> -->
+        <option value="IMU">IMU</option>
+        <option value="IMU_chart">IMU chart</option>
+        <option value="BrakeThrottle">BrakeThrottle</option>
+        <!-- <option value="SteerAngle">Steering angle</option>
+        <option value="SpeedRuntime">Speed & Runtime</option>
+        <option value="3dlidar">3D lidar</option> -->
+      </select>
+
+      <canvas id="telemetryChart2" class="dynamic-chart" style="display:none;"></canvas>
+      <canvas id="lidarChart2" class="lidar-chart" style="display:none;"></canvas>
+      <div id="imu-container-2" class="imu-visualization" style="display:none;">
+        <p><strong>Pitch:</strong>-</p>
+        <p><strong>Roll:</strong>-</p>
+        <p><strong>Yaw:</strong>-</p>
+        <!-- <p><strong>Delta:</strong>-</p> -->
+      </div>
+      <div id="gnss-container-2" class="gnss-text" style="display:none;">
+        <p><strong>Latitude:</strong> <span id="gnss-lat-2">-</span></p>
+        <p><strong>Longitude:</strong> <span id="gnss-lon-2">-</span></p>
+      </div>
+      <canvas id="gnssChart2" class="gnss-chart" style="display:none;"></canvas>
+      <div id="mapContainer2" class="online-map" style="display:none; width: 100%; height: 400px;"></div>
+
+      <div id="imuChart2" class="imu-chart" style="display:none;"></div>
+
+      <!-- <div id="steerangleVis2" style="display:none; width: 50%;"><img style="width: 100%; margin-bottom: 0;" class="steer_angle_image" src="../static/images/steerwheel.png"><p class="steer_angle_text">0deg</p></div>
+      <div id="carspeedRead2" style="display:none;">
+        <p>Current Speed:</p><p id="curr_speed_display2">0</p>
+        <p>Average Speed:</p><p id="curr_avgspeed_display2">0</p>
+        <p>Runtime (IMU):</p><p id="runtime2">00:00</p>
+      </div> -->
+
+      <div id="Lidar3dscichart2" class="3d-lidar"  style="display:none; width: 100%; height: 100%;"></div>
+    </section>
+
+    <section class="graphs">
+      <select id="dropdown3" class="dropdown">
+        <option value="none">None</option>
+        <option value="LiDar">LiDAR</option>
+        <option value="GNSS">GNSS</option>
+        <option value="GNSS_chart">GNSS chart</option>
+        <!-- <option value="OnlineMap">Online Map</option> -->
+        <option value="IMU">IMU</option>
+        <option value="IMU_chart">IMU chart</option>
+        <option value="BrakeThrottle">BrakeThrottle</option>
+        <!-- <option value="SteerAngle">Steering angle</option> -->
+        <!-- <option value="SpeedRuntime">Speed & Runtime</option> -->
+        <!-- <option value="3dlidar">3D lidar</option> -->
+      </select>
+
+      <canvas id="telemetryChart3" class="dynamic-chart" style="display:none;"></canvas>
+      <canvas id="lidarChart3" class="lidar-chart" style="display:none;"></canvas>
+      <div id="imu-container-3" class="imu-visualization" style="display:none;">
+        <p><strong>Pitch:</strong>-</p>
+        <p><strong>Roll:</strong>-</p>
+        <p><strong>Yaw:</strong>-</p>
+        <!-- <p><strong>Delta:</strong>-</p> -->
+      </div>
+      <div id="gnss-container-3" class="gnss-text" style="display:none;">
+        <p><strong>Latitude:</strong> <span id="gnss-lat-3">-</span></p>
+        <p><strong>Longitude:</strong> <span id="gnss-lon-3">-</span></p>
+      </div>
+      <canvas id="gnssChart3" class="gnss-chart" style="display:none;"></canvas>
+      <div id="mapContainer3" class="online-map" style="display:none; width: 100%; height: 400px;"></div>
+      <div id="imuChart3" class="imu-chart" style="display:none;"></div>
+
+      <!-- <div id="steerangleVis3" style="display:none; width: 50%;"><img style="width: 100%; margin-bottom: 0;" class="steer_angle_image" src="../static/images/steerwheel.png"><p class="steer_angle_text">0deg</p></div>
+      <div id="carspeedRead3" style="display:none;">
+        <p>Current Speed:</p><p id="curr_speed_display3">0</p>
+        <p>Average Speed:</p><p id="curr_avgspeed_display3">0</p>
+        <p>Runtime (IMU):</p><p id="runtime3">00:00</p>
+      </div> -->
+      
+      <div id="Lidar3dscichart3" class="3d-lidar"  style="display:none; width: 100%; height: 100%;"></div>
+    </section>
+
+    <section class="graphs">
+      <select id="dropdown4" class="dropdown">
+        <option value="none">None</option>
+        <option value="LiDar">LiDAR</option>
+        <option value="GNSS">GNSS</option>
+        <option value="GNSS_chart">GNSS chart</option>
+        <!-- <option value="OnlineMap">Online Map</option> -->
+        <option value="IMU">IMU</option>
+        <option value="IMU_chart">IMU chart</option>
+        <option value="BrakeThrottle">Brake/Throttle</option>
+        <!-- <option value="SteerAngle">Steering angle</option> -->
+        <!-- <option value="SpeedRuntime">Speed & Runtime</option> -->
+        <!-- <option value="3dlidar">3D lidar</option> -->
+      </select>
+
+      <canvas id="telemetryChart4" class="dynamic-chart" style="display:none;"></canvas>
+      <canvas id="lidarChart4" class="lidar-chart" style="display:none;"></canvas>
+      <div id="imu-container-4" class="imu-visualization" style="display:none;">
+        <p><strong>Pitch:</strong>-</p>
+        <p><strong>Roll:</strong>-</p>
+        <p><strong>Yaw:</strong>-</p>
+        <!-- <p><strong>Delta:</strong>-</p> -->
+      </div>
+      
+      <div id="gnss-container-4" class="gnss-text" style="display:none;">
+        <p><strong>Latitude:</strong> <span id="gnss-lat-4">-</span></p>
+        <p><strong>Longitude:</strong> <span id="gnss-lon-4">-</span></p>
+      </div>
+      <canvas id="gnssChart4" class="gnss-chart" style="display:none;"></canvas>
+      <div id="mapContainer4" class="online-map" style="display:none; width: 100%; height: 100%;"></div>
+      <div id="imuChart4" class="imu-chart" style="display:none;"></div>
+
+      <!-- <div id="steerangleVis4" style="display:none; width: 50%;"><img style="width: 100%; margin-bottom: 0;" class="steer_angle_image" src="../static/images/steerwheel.png"><p class="steer_angle_text">0deg</p></div>
+      <div id="carspeedRead4" style="display:none;">
+        <p>Current Speed:</p><p id="curr_speed_display4">0</p>
+        <p>Average Speed:</p><p id="curr_avgspeed_display4">0</p>
+        <p>Runtime (IMU):</p><p id="runtime4">00:00</p>
+      </div> -->
+
+      <div id="Lidar3dscichart4" class="3d-lidar"  style="display:none; width: 100%; height: 100%;"></div>
+    </section>
+  </nav>
+
+  <!-- This is the loop back feature on the top left of the screen inside of main container -->
+  <div id="loopback_traffic_light" class="loopback_traffic_off"></div>
+
+  <script type="text/javascript">
+    console.log("Page has reloaded!");
+
+  //these variables used for average speed calculation
+    let carspeed_speed_current = 0;
+    let carspeed_last_timestamp = 0;
+    let carspeed_speed_running_total = 0;
+    let carspeed_speed_sample_count = 0; 
+    let IMU_based_runtime_display = 0;
+
+
+    //this is used for the 3d lidar display
+    const { 
+    CameraController,
+    EColorMapMode,
+    EDrawMeshAs,
+    EMeshPaletteMode,
+    ETitlePosition,
+    GradientColorPalette,
+    HeatmapLegend,
+    linearColorMapLerp,
+    MouseWheelZoomModifier3D,
+    NumericAxis3D,
+    OrbitModifier3D,
+    PixelPointMarker3D,
+    ScatterRenderableSeries3D,
+    SciChart3DSurface,
+    SurfaceMeshRenderableSeries3D,
+    TLinearColorMap,
+    UniformGridDataSeries3D,
+    Vector3,
+    XyzDataSeries3D,
+    zeroArray2D,
+    SciChartJsNavyTheme,
+    } = SciChart;
+
+
+    //this stores the data gathered by the 3d lidar, so the high-scoped graph can find it
+    let lidar3DDataPoints = []
+    //setup 3d lidar graph
+    //https://demo.scichart.com/javascript/3d-lidar-visualization was used as a reference
+    for (i = 1; i <= 4; i++) {
+      const initSciChart = async () => {
+        SciChart3DSurface.UseCommunityLicense(); //set the liscence
+
+        //create the chart
+        const { wasmContext, sciChart3DSurface } = await SciChart3DSurface.create("Lidar3dscichart" + i, {
+            theme: new SciChartJsNavyTheme(),
+        });
+        sciChart3DSurface.worldDimensions = new Vector3(1000, 1000, 1000);
+        //camera initial position
+        sciChart3DSurface.camera = new CameraController(wasmContext, {
+          position: new Vector3(500, 500, 500),
+          target: new Vector3(0, 5, 0),
+        });
+
+        sciChart3DSurface.xAxis = new NumericAxis3D(wasmContext, { axisTitle: "X" });
+        sciChart3DSurface.yAxis = new NumericAxis3D(wasmContext, { axisTitle: "Y" });
+        sciChart3DSurface.zAxis = new NumericAxis3D(wasmContext, { axisTitle: "Z" });
+
+        //initial data. Not visible but helps set the bounds of the visualization
+        const dataSeries = new XyzDataSeries3D(wasmContext, {
+            xValues: [-100,100], 
+            yValues: [0,200],
+            zValues: [-100,100],
+        });
+
+        sciChart3DSurface.renderableSeries.add(
+          new ScatterRenderableSeries3D(wasmContext, {
+              pointMarker: new PixelPointMarker3D(wasmContext),
+              dataSeries,
+              opacity: 1,
+          })
+        );
+      
+        const updateData = () => {
+            dataSeries.clear();
+            if (lidar3DDataPoints.length > 0) {
+              dataSeries.appendRange(lidar3DDataPoints[0],lidar3DDataPoints[1],lidar3DDataPoints[2]);//lidar3DDataPoints.x , .y, .z
+            }
+        }
+
+        setTimeout(() => {
+          updateData();
+          setInterval(updateData, 50);
+        }, 50);
+
+        sciChart3DSurface.chartModifiers.add(new MouseWheelZoomModifier3D());
+        sciChart3DSurface.chartModifiers.add(new OrbitModifier3D());
+
+        return { sciChartSurface: sciChart3DSurface, wasmContext };
+      }
+      initSciChart();
+    }
+
+
+
+    document.addEventListener("DOMContentLoaded", function () {
+      // this tell ROS where to communicate (our website)
+      var ros = new ROSLIB.Ros({ url: "ws://localhost:9090" });
+
+      //we use this to see if any errors happened for all the sensors(rosbridge could not connect for some reason)
+      ros.on("connection", function () {
+        console.log("Connected to rosbridge WebSocket server.");
+      });
+      ros.on("error", function (error) {
+        console.error("Error connecting to rosbridge:", error);
+      });
+      ros.on("close", function () {
+        console.log("Connection to rosbridge closed.");
+      });
+
+      //here is the camera sensor subscriber
+      var imageTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: "/camera_feed",
+        messageType: "sensor_msgs/CompressedImage",
+      });
+
+      function imageUpdate(message) {
+        if (message.data) {
+          document.getElementById("live-img").src =
+            "data:image/jpeg;base64," + message.data;
+        }
+      };
+
+      imageTopic.subscribe(imageUpdate);
+
+      //subscribe to heatmap topic
+      const heatmapTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: "/camera/depth/heatmap/compressed",
+        messageType: "sensor_msgs/CompressedImage"
+      });
+
+      function heatmapUpdate(message){
+        if (message.data) {
+          console.log("Heatmap message received:", message);
+          document.getElementById("live-img").src = "data:image/jpeg;base64," + message.data;
+        }
+      };
+
+      heatmapTopic.subscribe(heatmapUpdate);
+
+      
+      const throttleBrakeChartObjects = [];
+      for (let i = 1; i <= 4; i++) {
+        let canvas = document.getElementById("telemetryChart" + i);
+        let ctx = canvas.getContext("2d");
+
+        let throttleData = Array.from({ length: 40 }, () => 0);
+        let brakeData = Array.from({ length: 40 }, () => 0);
+
+        let chartObj = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: Array.from({ length: 40 }, (_, idx) => idx),
+            datasets: [
+              {
+                label: "Throttle",
+                borderColor: "green",
+                data: throttleData,
+                fill: false,
+              },
+              {
+                label: "Brake",
+                borderColor: "red",
+                data: brakeData,
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            animation: false,
+            responsive: true,
+            scales: {
+
+              x: { display: false },
+              y: { min: 0, max: 100 },
+            },
+          },
+        });
+
+        throttleBrakeChartObjects.push(chartObj);
+      }
+
+      var controllerTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: "/controller_data",
+        messageType: "geometry_msgs/Vector3",
+      });
+
+      function controllerUpdate(msg) {
+        throttleBrakeChartObjects.forEach((chart) => {
+          let tData = chart.data.datasets[0].data;
+          let bData = chart.data.datasets[1].data;
+          tData.push(msg.x);
+          bData.push(msg.y);
+          if (tData.length > 40) tData.shift();
+          if (bData.length > 40) bData.shift();
+          chart.update();
+
+        });
+        for (let i of document.getElementsByClassName("steer_angle_image") ) {
+          i.style.transform = "rotate( " + msg.z +"deg)";
+        };
+        
+        for (let i of document.getElementsByClassName("steer_angle_text") ) {
+          i.textContent = msg.z + "deg";
+        };
+        //steering angle: msg.z
+        //so we need: image on website
+        //here, tilt the image by msg.z
+      };
+
+      controllerTopic.subscribe(controllerUpdate);
+
+
+       var threeDLidarTopic = new ROSLIB.Topic({
+         ros: ros,
+         name: "/combined_points",
+         messageType: "sensor_msgs/msg/PointCloud2",
+         qos: {  reliability: 0, durability: 1}
+       });
+      threeDLidarTopic.subscribe(function (msg) {
+        rawdatastr = atob(msg.data);
+        databytes = Array(rawdatastr.length);
+        for (i = 0; i < rawdatastr.length; i++) {
+          databytes[i] = rawdatastr.charCodeAt(i);
+        }
+        
+        //this setup assumes some of the message's values are particular things. E.G. the presence of x,y,z (vs r,theta,y or something else still) & their position 
+        //within the message, endianness, and message height are all assumed from the given bag. I wrote out a concept for what a more fleshed out
+        //pointcloud message interpreter could look, but it appears to have been lost.
+        let ptarray = [];
+        
+        ptsx = [];
+        ptsy = [];
+        ptsz = [];
+
+        for (dataindex = 0; dataindex < databytes.length - 31; dataindex += 32) {
+          //convert to float32
+          let x = new ArrayBuffer(4);
+          let xi = new Uint8Array(x);
+          let xf = new Float32Array(x);
+          xi[0] = databytes[dataindex+0];
+          xi[1] = databytes[dataindex+1];
+          xi[2] = databytes[dataindex+2];
+          xi[3] = databytes[dataindex+3];
+          let y = new ArrayBuffer(4);
+          let yi = new Uint8Array(y);
+          let yf = new Float32Array(y);
+          yi[0] = databytes[dataindex+4];
+          yi[1] = databytes[dataindex+5];
+          yi[2] = databytes[dataindex+6];
+          yi[3] = databytes[dataindex+7];
+          let z = new ArrayBuffer(4);
+          let zi = new Uint8Array(z);
+          let zf = new Float32Array(z);
+          zi[0] = databytes[dataindex+8];
+          zi[1] = databytes[dataindex+9];
+          zi[2] = databytes[dataindex+10];
+          zi[3] = databytes[dataindex+11];
+          // let intensity =  new ArrayBuffer(4);
+          // let intensityi = new Uint8Array(z);
+          // let intensityf = new Float32Array(z);
+          // intensityi[0] = databytes[dataindex+16];
+          // intensityi[1] = databytes[dataindex+17];
+          // intensityi[2] = databytes[dataindex+18];
+          // intensityi[3] = databytes[dataindex+19];
+
+          //the bag and Scichart use different standards for which axis is vertical. Classic.
+          ptsx.push(xf[0]);
+          ptsy.push(zf[0]);
+          ptsz.push(yf[0]);
+
+          }
+        lidar3DDataPoints = [ptsx, ptsy, ptsz];
+
+      })
+
+
+
+//this is the Lidar subscriber that creates the radar like graph. it creates 4 lidar graph objects and makes them invisible 
+      //in each one until someone selects it on the drop down menu. on top of that, it obbvously creates 360 degree graph. 
+      const LIDAR_LABELS = [];
+      for (let i = 0; i < 360; i++) {
+        LIDAR_LABELS.push(i.toString());
+      }
+
+      const lidarChartObjects = [];
+      for (let i = 1; i <= 4; i++) {
+        let lidarCanvas = document.getElementById("lidarChart" + i);
+        let lidarCtx = lidarCanvas.getContext("2d");
+
+        let initialData = Array.from({ length: 360 }, () => 0);
+
+        let lidarChart = new Chart(lidarCtx, {
+          type: "radar",
+          data: {
+            labels: LIDAR_LABELS,
+            datasets: [
+              {
+                label: "",
+                data: initialData,
+                fill: false,
+                showLine: false,
+                pointRadius: 2,
+                pointBackgroundColor: "teal",
+                pointBorderColor: "teal"
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            animation: false,
+            plugins: {
+              tooltip: {
+                enabled: false
+              },
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+              r: {
+                //minimum distance must be 0.16 meters. lidar does not work below that. as of now it's set at 4 meters as the max distance
+                min: 0.16,
+                max: 4,
+                pointLabels: {
+                  callback: function (value, index) {
+                    return (index % 30 === 0) ? index : "";
+                  }
+                }
+              },
+            },
+          },
+        });
+
+        lidarChartObjects.push(lidarChart);
+      }
+
+      var lidarTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: "/scan",
+        messageType: "sensor_msgs/LaserScan",
+      });
+
+      function lidarChartUpdate(scanMsg){
+
+        let newRanges = Array(360).fill(Infinity);
+        let angleMin = scanMsg.angle_min;
+        let angleMax = scanMsg.angle_max;
+        let ranges = scanMsg.ranges;
+        let numPts = ranges.length;
+
+        //this is the key to making the lidar work under any speed. it simply takes in the raw angles from the publisher and 
+        // we can simply output the angle on the radar graph. 
+        let angles = scanMsg.intensities;  // quick work around
+
+        for (let i = 0; i < numPts; i++) {
+          // let angle = angleMin + (i * (angleMax - angleMin)) / (numPts - 1);
+          // let angleDeg = angle * 180 / Math.PI;
+          // angleDeg = (angleDeg + 360) % 360; 
+          // let idx = Math.round(angleDeg);
+          // if (idx === 360) idx = 359;
+          // newRanges[idx] = ranges[i];
+          let angleDeg = Math.round(angles[i] * 180 / Math.PI);
+
+          angleDeg = (angleDeg + 360) % 360;
+
+          newRanges[angleDeg] = ranges[i];
+        }
+          //resets/updates the lidar graph after 360 degree rotation
+        lidarChartObjects.forEach((chartObj, chartIndex) => {
+          let chartCanvas = document.getElementById("lidarChart" + (chartIndex + 1));
+          if (chartCanvas.style.display !== "none") {
+            chartObj.data.datasets[0].data = newRanges;
+            chartObj.update();
+          }
+        });
+      };
+
+      // the actual subscriber that connects to the topic and therefore the publisher
+      lidarTopic.subscribe(lidarChartUpdate);
+
+      //creat gnss topic subscriber in frontend
+      var gnssTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: "/gnss",
+        messageType: "std_msgs/String",
+      });
+
+      //save the newest gnss data
+      let lastLat = 0.0;
+      let lastLon = 0.0;
+      let lastAlt = 0.0;
+
+      //update the gnss charts to the newest gnss data when new data comes
+      function gnssUpdate (msg) {
+        let rawNmea = msg.data.trim();
+
+        let maybe = parseNmeaSentence(rawNmea);
+        if (maybe) {
+          //update to the newest data
+          lastLat = maybe.lat;
+          lastLon = maybe.lon;
+          lastAlt = maybe.alt;
+          console.log("Got GNSS fix:", lastLat, lastLon, lastAlt);
+          //update frontend visualization display
+          updateGnssDisplays(lastLat, lastLon, lastAlt);
+          updateOnlineMap(lastLat, lastLon);
+          updateSidebarMap(lastLat, lastLon);
+        } else {
+        }
+      };
+
+      //subscribe to gnss topic and run gnssUpdate function when getting new data
+      gnssTopic.subscribe(gnssUpdate);
+
+      //update each gnss data chart that is in drop down window
+      function updateGnssDisplays(lat, lon, alt) {
+        for (let i = 1; i <= 4; i++) {
+          let dropdown = document.getElementById("dropdown" + i);
+          if (dropdown.value === "GNSS") {
+            let gnssContainer = document.getElementById("gnss-container-" + i);
+            gnssContainer.style.display = "block";
+            document.getElementById("gnss-lat-" + i).innerText = lat.toFixed(6);
+            document.getElementById("gnss-lon-" + i).innerText = lon.toFixed(6);
+            if (document.getElementById("gnss-alt-" + i)) {
+              document.getElementById("gnss-alt-" + i).innerText = alt.toFixed(1);
+            }
+          }
+        }
+      }
+
+      //get data in numbers form from raw dara sent by gnss publisher node
+      function parseNmeaSentence(sentence) {
+        let parts = sentence.split(",");
+        if (parts.length < 2) return null;
+        let latPart = parts[0].trim();
+        let lonPart = parts[1].trim();
+        if (!latPart.startsWith("Latitude:") || !lonPart.startsWith("Longitude:")) {
+          return null;
+        }
+        let lat = parseFloat(latPart.replace("Latitude:", "").trim());
+        let lon = parseFloat(lonPart.replace("Longitude:", "").trim());
+        return { lat, lon, alt: 0.0 };
+      }
+
+      //creat online map when connect to internet
+      //ask user to type in latitude, longitude to initialize the center of displayed map
+      //uer will be able to drag the map to look at different area
+      function onlineGNSSChartObject(index){
+        if (!navigator.onLine) {
+          alert("can not load map without connection");
+          return;
+        }
+        let userInput = prompt("Please insert your current coordinates (format: latitude, longitude)");
+        if (!userInput){
+          return;
+        }
+        let [latIn,lonIn] = userInput.split(",");
+        let lat = parseFloat(latIn.trim()) || 0;
+        let lon = parseFloat(lonIn.trim()) || 0;
+
+        let mapDiv = document.getElementById("mapContainer" + index);
+        mapDiv.style.display = "block";
+
+        window.onlineMaps = window.onlineMaps || {};
+
+        if (window.onlineMaps[index]) {
+          window.onlineMaps[index].remove();
+          // window.onlineMaps[index] = null;
+        }
+        const mapIns = L.map(mapDiv).setView([lat, lon], 10);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          keepBuffer: 6,
+          //updateWhenIdle: false
+        }).addTo(mapIns);
+
+
+        window.onlineMaps[index] = mapIns;
+        
+        // if (!window.onlineMaps){
+        //   window.onlineMaps = {};
+        // }
+
+        // if (window.onlineMaps[index]) {
+        //   window.onlineMaps[index].remove();
+        //   window.onlineMaps[index] = null;
+        // }
+
+        // let map = L.map(mapDiv).setView([lat, lon], 14);
+
+        // L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        //   maxZoom: 19
+        // }).addTo(map);
+
+        // window.onlineMaps[index] = map;
+
+        setTimeout(() => {
+          mapIns.invalidateSize(true);
+        }, 0);
+        
+      }
+
+      let lastBluePointTime = 0;
+      if (!window.currentRedMarkers) {
+        window.currentRedMarkers = {};
+      }
+
+      // function updateOnlineMap(lat,lon){
+      //   if (!window.onlineMaps){ 
+      //     return;
+      //   }
+
+      //   for (let i = 1; i <= 5; i++) {
+      //     let dropdown = document.getElementById("dropdown" + i);
+      //     if (!dropdown){ 
+      //       continue;
+      //     }
+      //     if (dropdown.value === "OnlineMap") {
+      //       let map = window.onlineMaps[i];
+      //       if (!map){ 
+      //         continue;
+      //       }
+      //       if (window.currentRedMarkers[i]) {
+      //         window.currentRedMarkers[i].setLatLng([lat, lon]);
+      //       } else {
+      //         let redMarker = L.circleMarker([lat, lon], {
+      //           radius: 6,
+      //           color: "red",
+      //           fillColor: "red",
+      //           fillOpacity: 0.8
+      //         }).addTo(map);
+      //         window.currentRedMarkers[i] = redMarker;
+      //       }
+
+      //       let now = Date.now();
+      //       if (now - lastBluePointTime > 500) {
+      //         lastBluePointTime = now;
+      //         L.circleMarker([lat, lon], {
+      //           radius: 3,
+      //           color: "blue",
+      //           fillColor: "blue",
+      //           fillOpacity: 0.8
+      //         }).addTo(map);
+      //       }
+      //     }
+      //   }
+      // }
+
+      //update online map with newest gnss data, draw current location and trace.
+      function updateOnlineMap(lat, lon) {
+        if (!window.onlineMaps) return;
+
+        for (let i = 1; i <= 5; i++) {
+          let dropdown = document.getElementById("dropdown" + i);
+          
+          const shouldUpdate = i === 5 || (dropdown && dropdown.value === "OnlineMap");
+          if (!shouldUpdate) continue;
+
+          let map = window.onlineMaps[i];
+          if (!map) continue;
+
+          if (window.currentRedMarkers[i]) {
+            window.currentRedMarkers[i].setLatLng([lat, lon]);
+          } else {
+            let redMarker = L.circleMarker([lat, lon], {
+              radius: 6,
+              color: "red",
+              fillColor: "red",
+              fillOpacity: 0.8
+            }).addTo(map);
+            window.currentRedMarkers[i] = redMarker;
+          }
+
+          let now = Date.now();
+          if (!window.lastBluePointTime) window.lastBluePointTime = 0;
+          if (now - window.lastBluePointTime > 500) {
+            window.lastBluePointTime = now;
+            L.circleMarker([lat, lon], {
+              radius: 3,
+              color: "blue",
+              fillColor: "blue",
+              fillOpacity: 0.8
+            }).addTo(map);
+          }
+        }
+      }
+
+      //creat gnss chart on 4 different canvas
+      const gnssChartObjects = [];
+      for (let i = 1; i <= 4; i++) {
+        let canvas = document.getElementById("gnssChart" + i);
+        if (!canvas) continue;
+        let ctx = canvas.getContext("2d");
+        let chart = new Chart(ctx, {
+          type: "scatter",
+          data: {
+            datasets: [
+              {
+                label: "Current Position",
+                data: [],
+                backgroundColor: "red",
+                pointRadius: 6,
+              },
+              {
+                label: "Trace",
+                data: [],
+                backgroundColor: "blue",
+                pointRadius: 3,
+              }
+            ]
+          },
+          options: {
+            animation: false,
+            responsive: true,
+            aspectRatio: 1,
+            scales: {
+              x: {
+                type: "linear",
+                min: -70,
+                max: 70,
+                title: { display: true, text: "Meters (East-West)" }
+              },
+              y: {
+                type: "linear",
+                min: -70,
+                max: 70,
+                title: { display: true, text: "Meters (North-South)" }
+              }
+            }
+          }
+        });
+        gnssChartObjects.push(chart);
+      }
+
+      //this function is based on the online map
+      //but we change it's place to the side bar of website 
+      function updateSidebarMap(lat, lon) {
+        const map = window.onlineMaps[5];
+        if (!map) return;
+        if (window.sidebarMarker) {
+          window.sidebarMarker.setLatLng([lat, lon]);
+        } else {
+          window.sidebarMarker = L.circleMarker([lat, lon], { /* ... */ }).addTo(map);
+        }
+      }
+
+      let gnssCenter = null;
+      const meterPerDegLat = 111320; //111320
+      let meterPerDegLon = null;
+      let lastRecordedTime = 0;
+
+      //var gnssTopic = new ROSLIB.Topic({
+      //  ros: ros, 
+      //  name: "/gnss/raw_data",
+      //  messageType: "std_msgs/String",
+      //
+
+      
+      //when geting new gnss data, this function will be called and draw curent location and trace to the chart
+      //use to dataset to track current location and trace.
+      function gnssChartUpdate(msg) {
+        let rawNmea = msg.data.trim();
+        let parsed = parseNmeaSentence(rawNmea);
+        if (!parsed) return;
+        let lat = parsed.lat;
+        let lon = parsed.lon;
+
+        if (!gnssCenter) {
+          gnssCenter = { lat: lat, lon: lon };
+          meterPerDegLon = meterPerDegLat * Math.cos(gnssCenter.lat * Math.PI / 180);
+        }
+
+        let relX = (lon - gnssCenter.lon) * meterPerDegLon;
+        let relY = (lat - gnssCenter.lat) * meterPerDegLat;
+
+        //if (Math.abs(relX) > 80 || Math.abs(relY) > 80) {
+        //  gnssCenter = { lat: lat, lon: lon };
+        //  meterPerDegLon = meterPerDegLat * Math.cos(gnssCenter.lat * Math.PI / 180);
+        //  relX = 0;
+        //  relY = 0;
+        //  gnssChartObjects.forEach(chart => {
+        //    chart.data.datasets[1].data = [];
+        //  });
+        //}
+
+        gnssChartObjects.forEach(chart => {
+          chart.data.datasets[0].data = [{ x: relX, y: relY }];
+
+          chart.data.datasets[1].data.push({ x: relX, y: relY });
+
+          chart.update();
+
+        });
+      };
+
+      //subscribe gnss cart to the gnss topic, and update once recive any data.
+      gnssTopic.subscribe(gnssChartUpdate);
+
+
+
+      //Takes in an IMU message, and updates the stats on the website
+      function updateSpeedStats(msg) {
+
+        const acceleration = Math.sqrt(
+          Math.pow(msg.linear_acceleration.x, 2) + Math.pow(msg.linear_acceleration.z, 2)
+        );
+
+        console.log("updating imu data");
+        let carspeed_deltatime =
+          carspeed_last_timestamp === 0
+            ? 0
+            : msg.header.stamp["sec"] +
+              0.000000001 * msg.header.stamp["nanosec"] -
+              carspeed_last_timestamp;
+
+        carspeed_speed_current += acceleration * carspeed_deltatime;
+        console.log(msg.header.stamp.nanosec);
+
+        carspeed_speed_running_total += carspeed_speed_current;
+        carspeed_speed_sample_count++;
+
+        let avgSpeed = carspeed_speed_running_total / carspeed_speed_sample_count;
+
+        carspeed_last_timestamp =
+          msg.header.stamp["sec"] + 0.000000001 * msg.header.stamp["nanosec"];
+
+        IMU_based_runtime_display += carspeed_deltatime;
+
+        //update speed + runtime stats
+        let runtime_disp_m = Math.trunc(IMU_based_runtime_display / 60);
+        let runtime_disp_s = Math.trunc(IMU_based_runtime_display % 60);
+        let runtime_disp_text_m = runtime_disp_m >= 10 ? runtime_disp_m : "0" + runtime_disp_m;
+        let runtime_disp_text_s = runtime_disp_s >= 10 ? runtime_disp_s : "0" + runtime_disp_s;
+
+        //update the IMU dropdown element
+        for (let i = 1; i <= 4; i++) {
+          let imuContainer = document.getElementById("imu-container-" + i);
+          if (imuContainer && imuContainer.style.display !== "none") {
+            imuContainer.innerHTML = `
+              <p><strong>Pitch:</strong> ${msg.angular_velocity.x.toFixed(2)}°</p>
+              <p><strong>Roll:</strong> ${msg.angular_velocity.y.toFixed(2)}°</p>
+              <p><strong>Yaw:</strong> ${msg.angular_velocity.z.toFixed(2)}°</p>`;
+          }
+
+        }
+        //update speed + runtime display
+        //not currently visible; the hardware we are using made this not an option, sadly. It works if you have the hardware though.
+        document.getElementById("curr_speed_display").innerText =
+          Math.trunc(carspeed_speed_current * 1000) / 1000 + " m/s";
+        document.getElementById("curr_avgspeed_display").innerText =
+          Math.trunc(avgSpeed * 1000) / 1000 + " m/s";
+        document.getElementById("runtime").innerText =
+          runtime_disp_text_m + ":" + runtime_disp_text_s;
+      }
+
+      var imuTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: "/imu/data_raw",
+        messageType: "sensor_msgs/Imu",
+      });
+
+      function imuUpdate(msg) {
+        console.log("IMU Data: ", msg);
+
+        const acceleration = Math.sqrt(
+          Math.pow(msg.linear_acceleration.x, 2) + Math.pow(msg.linear_acceleration.z, 2)
+        );
+        updateSpeedStats(msg);
+      }
+
+
+      //imuTopic.subscribe(imuUpdate);
+
+      
+
+    
+      // var imuTopic = new ROSLIB.Topic({
+      //   ros: ros,
+      //   name: "/imu/data_raw",
+      //   messageType: "sensor_msgs/Imu",
+      // });
+
+      //when called it will calcuate the angles based on IMU raw data
+      //and apdate the angular state of a 3d model.
+      function imuChartUpdate(message) {
+        const angles = calculateIMUAngle(message);
+        //update the model to correct angle if model exist.
+        if (imuCube) {
+          imuCube.rotation.x = angles.x;
+          imuCube.rotation.y = angles.y;
+          imuCube.rotation.z = angles.z;
+        }
+        updateSpeedStats(message)
+      }
+
+      
+      imuTopic.subscribe(imuChartUpdate);
+
+
+      let imuAngles = { x: 0, y: 0, z: 0 };
+      let lastImuUpdateTime = null;
+
+      let imuScene, imuCamera, imuRenderer, imuCube;
+
+      //imu basic settings(gackground, camera, lights, and model of a car)
+      function imuChartObjects(containerId) {
+        const container = document.getElementById(containerId);
+
+        const width = container.clientWidth || 300;
+        const height = container.clientHeight || 300;
+
+        imuScene = new THREE.Scene();
+        imuScene.background = new THREE.Color(0xffffff);
+
+        imuCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        imuCamera.position.z = 3;
+
+        imuRenderer = new THREE.WebGLRenderer({ antialias: true });
+        imuRenderer.setSize(width, height);
+        container.innerHTML = "";
+        container.appendChild(imuRenderer.domElement);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        directionalLight.position.set(-5, 5, 3);
+        imuScene.add(directionalLight);
+
+        // const geometry = new THREE.BoxGeometry(1, 1, 1);
+        // const material = new THREE.MeshNormalMaterial();
+        // imuCube = new THREE.Mesh(geometry, material);
+        // imuScene.add(imuCube);
+
+        const car = new THREE.Group();
+
+        const bodyGeometry = new THREE.BoxGeometry(0.8,1.5,0.3);
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xD3D3D3 });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        //body.position.y = 0.3;
+        car.add(body);
+
+        const upperGeometry = new THREE.BoxGeometry(0.6, 0.9, 0.2);
+        const upperMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        const upperBox = new THREE.Mesh(upperGeometry, upperMaterial);
+
+        upperBox.position.set(0, -0.1, 0.3);
+        car.add(upperBox);
+
+        const directionGeometry = new THREE.ConeGeometry(0.1,0.2,15);
+        const directionMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const directionPointer = new THREE.Mesh(directionGeometry, directionMaterial);
+
+        directionPointer.position.set(0,1.25,0.15);
+        car.add(directionPointer)
+
+
+        const wheelGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 32);
+        const wheelMaterial = new THREE.MeshStandardMaterial({color: 0x000000});
+
+        function createWheel(x, y) {
+          const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(x, y, -0.15);
+          return wheel;
+        }
+
+        car.add(createWheel(-0.5,0.8));
+        car.add(createWheel( 0.5,0.8));
+        car.add(createWheel(-0.5,-0.75));
+        car.add(createWheel( 0.5,-0.75));
+
+        imuCube = car;
+        imuScene.add(imuCube);
+
+        animateIMU();
+
+        imuAngles = { x: 0, y: 0, z: 0 };
+        lastImuUpdateTime = null;
+      }
+
+      //keep the car move smoothly during angle changes
+      function animateIMU() {
+        requestAnimationFrame(animateIMU);
+        imuRenderer.render(imuScene, imuCamera);
+      }
+
+      //calculate angles based on the raw datas
+      function calculateIMUAngle(imuMsg) {
+        const currentTime = Date.now();
+        if (lastImuUpdateTime === null) {
+          lastImuUpdateTime = currentTime;
+          return imuAngles;
+        }
+        const dt = (currentTime - lastImuUpdateTime) / 1000.0;
+        lastImuUpdateTime = currentTime;
+
+        if (Math.abs(imuMsg.angular_velocity.x) > 5){
+          imuAngles.y += imuMsg.angular_velocity.x * dt* 0.018;
+        }
+        if (Math.abs(imuMsg.angular_velocity.y) > 5){
+          imuAngles.x += imuMsg.angular_velocity.y * dt* 0.018;
+        }
+        if (Math.abs(imuMsg.angular_velocity.z) > 5){
+          imuAngles.z += imuMsg.angular_velocity.z * dt* -0.018;//imuMsg.angular_velocity.z//
+        }
+        // imuAngles.x += imuMsg.angular_velocity.x * dt*  0.018;
+        // imuAngles.y += imuMsg.angular_velocity.y * dt* -0.018;
+        // imuAngles.z += imuMsg.angular_velocity.z * dt* -0.018;//imuMsg.angular_velocity.z//
+        return imuAngles;
+      }
+
+      //reset all chart that might become more confuse after time
+      function resetCharts() {
+        if (imuCube) {
+          imuCube.rotation.set(0, 0, 0);
+        }
+        imuAngles = { x: 0, y: 0, z: 0 };
+        lastImuUpdateTime = null;
+
+        gnssChartObjects.forEach(chart => {
+          chart.data.datasets[0].data = [];
+          chart.data.datasets[1].data = [];
+          chart.update();
+        });
+        gnssCenter = null;
+        if (window.onlineMaps) {
+          for (let i = 1; i <= 5; i++) {
+            const map = window.onlineMaps[i];
+            if (map) {
+              map.eachLayer(layer => {
+                if (layer instanceof L.CircleMarker) {
+                  map.removeLayer(layer);
+                }
+              });
+              if (window.currentRedMarkers && window.currentRedMarkers[i]) {
+                delete window.currentRedMarkers[i];
+              }
+            }
+          }
+        }
+      }
+
+        gnssChartObjects.forEach(chart => {
+          chart.data.datasets[0].data = [];
+          chart.data.datasets[1].data = [];
+          chart.update();
+        });
+        gnssCenter = null;
+      
+
+
+      document.getElementById("reset").addEventListener("click", function(){
+        resetCharts();
+      });
+
+      document.getElementById("reset").addEventListener("click", function(){
+        resetCharts();
+      });
+
+
+      //track if the website is in replay mode
+      var isReplayMode = false;
+
+      // simply tells the user when the replay is replaying with some text. if it's replaying it will show
+      function updateReplayingIndicator() {
+        const textEl = document.getElementById("replaying-text");
+        if (isReplayMode) {
+          textEl.style.visibility = "visible";
+        } else {
+          textEl.style.visibility = "hidden";
+        } 
+      }
+
+      //when click on replay button, it will:
+      //reset charts,
+      //switch topics between live topic and replay topic
+      //tell backend to start/stop replay
+      document.getElementById("replay").addEventListener("click", function(){
+        //lidarTopic.unsubscribe(lidarChartUpdate);
+
+        imageTopic.unsubscribe();
+        controllerTopic.unsubscribe();
+        lidarTopic.unsubscribe();
+        gnssTopic.unsubscribe();
+        imuTopic.unsubscribe();
+
+        resetCharts()
+
+        isReplayMode = !isReplayMode;
+        updateReplayingIndicator()
+
+        if(isReplayMode){
+        //  lidarTopic = new ROSLIB.Topic({
+        //    ros: ros,
+        //    name: "lidar_bag",
+        //    messageType: "sensor_msgs/LaserScan"
+        //  }
+
+        imageTopic = new ROSLIB.Topic({
+          ros: ros,
+          name: "/camera_feed_bag",
+          messageType: "sensor_msgs/CompressedImage",
+        });
+
+        controllerTopic = new ROSLIB.Topic({
+          ros: ros,
+          name: "/controller_data_bag",
+          messageType: "geometry_msgs/Vector3",
+        });
+
+        lidarTopic = new ROSLIB.Topic({
+          ros: ros,
+          name: "/scan_bag",
+          messageType: "sensor_msgs/LaserScan"
+        });
+
+        gnssTopic = new ROSLIB.Topic({
+          ros: ros,
+          name: "/gnss_bag",
+          messageType: "std_msgs/String",
+        });
+
+        imuTopic = new ROSLIB.Topic({
+          ros: ros,
+          name: "/imu/data_raw_bag",
+          messageType: "sensor_msgs/Imu",
+        });
+
+
+        }else{
+          imageTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/camera_feed",
+            messageType: "sensor_msgs/CompressedImage",
+          });
+
+          controllerTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/controller_data",
+            messageType: "geometry_msgs/Vector3",
+          });
+
+          lidarTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/scan",
+            messageType: "sensor_msgs/LaserScan"
+          });
+
+          gnssTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/gnss",
+            messageType: "std_msgs/String",
+          });
+
+          imuTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/imu/data_raw",
+            messageType: "sensor_msgs/Imu",
+          });
+
+        }
+        imageTopic.subscribe(imageUpdate);
+        controllerTopic.subscribe(controllerUpdate);
+        lidarTopic.subscribe(lidarChartUpdate);
+        gnssTopic.subscribe(gnssUpdate);
+        gnssTopic.subscribe(gnssChartUpdate);
+        imuTopic.subscribe(imuChartUpdate);
+
+
+        // call the routes
+        fetch('/playROS2Bag',{
+          method: 'POST',
+          headers:{
+            'Content-Type' : 'application/json'
+          },
+          body: JSON.stringify({isReplayMode: isReplayMode})
+        })
+        .then(response => response.json())
+        .then(data => console.log(data.status))
+        .catch(error => console.error(error));
+        
+
+
+        // this disables the replay button for 6 seconds after replaying
+        if (!isReplayMode) {
+          const replayButton = document.getElementById("replay");
+          replayButton.disabled = true;
+          setTimeout(() => {
+            replayButton.disabled = false;
+          }, 6000);
+        }
+      });
+
+
+      //track if the website is in record mode
+      let isRecordMode = false;
+
+      // shows text to show when it's recording
+      function updateRecordingIndicator() {
+        const textEl = document.getElementById("recording-text");
+        if (isRecordMode) {
+          textEl.style.visibility = "visible";
+        } else {
+          textEl.style.visibility = "hidden";
+        } 
+      }
+
+
+      // when click on record button, it will tell backend to start/stop record
+    
+      document.getElementById("record").addEventListener("click",function(){
+        isRecordMode = !isRecordMode
+
+        updateRecordingIndicator();
+
+        fetch('/recordROS2Bag',{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json'
+          },
+          body: JSON.stringify({isRecordMode:isRecordMode})
+        })
+        .then(response => response.json())
+        .then(data => console.log(data.status))
+        .catch(error => console.error(error));
+
+
+        const popup = document.getElementById("popup-record");
+
+        //due to how ROS2 is setup it will take around 9 seconds to actually start recording after we click on the button
+        //this simply shows a popup message for 1.7 seconds telling the user to wait for 9 seconds to start recording
+        if (isRecordMode){
+          popup.style.display = "block";
+          setTimeout(() => {
+            popup.style.display = "none";
+          }, 1700);
+        }
+
+
+
+        // disables the record button after user stops recording
+        if (!isRecordMode) {
+          const recordButton = document.getElementById("record");
+          recordButton.disabled = true;
+          setTimeout(() => {
+            recordButton.disabled = false;
+          }, 6000);
+
+        }
+
+      });
+
+
+      //When user is in replay mode, they can use this "play" button to let backend send command to pause or resume the replaying ros bag
+      document.getElementById("play").addEventListener("click", function() {
+        if(isReplayMode){
+          fetch('/pauseResume', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(response => response.json())
+          .then(data => console.log(data.status))
+          .catch(error => console.error(error));
+        }
+      });
+
+
+      // this connects all of the sensors to each of the 4 graphs. if a dropdown option is clicked for one of the sensors 
+      // then it will make it appear (invisible before)
+      for (let i = 1; i <= 4; i++) {
+        let dropdown = document.getElementById("dropdown" + i);
+        let lidarCanvas = document.getElementById("lidarChart" + i);
+        let imuContainer = document.getElementById("imu-container-" + i);
+        let gnssContainer = document.getElementById("gnss-container-" + i);
+        let gnssChart = document.getElementById("gnssChart" + i)
+        let imuChart = document.getElementById("imuChart" + i)
+        let brakeThrottleChart = document.getElementById("telemetryChart" + i);
+        //let steerAngleContainer = document.getElementById("steerangleVis" + i);
+        //let carspeedContainer = document.getElementById("carspeedRead" + i);
+        let lidar3dContainer = document.getElementById("Lidar3dscichart" + i);
+        let mapDiv = document.getElementById("mapContainer" + i);
+
+        dropdown.addEventListener("change", function (event) {
+          const choice = event.target.value;
+          lidarCanvas.style.display = "none";
+          gnssContainer.style.display = "none";
+          imuContainer.style.display = "none";
+          gnssChart.style.display = "none";
+          imuChart.style.display = "none";
+          brakeThrottleChart.style.display = "none";
+          //steerAngleContainer.style.display = "none";
+          //carspeedContainer.style.display = "none";
+          lidar3dContainer.style.display = "none";
+          mapDiv.style.display = "none"
+
+          if (choice === "LiDar") {
+            lidarCanvas.style.display = "block";
+          }
+          else if (choice === "IMU") {
+            imuContainer.style.display = "block";
+          }
+          else if (choice === "GNSS") {
+            gnssContainer.style.display = "block";
+
+            document.getElementById("gnss-lat-" + i).innerText = lastLat.toFixed(6);
+            document.getElementById("gnss-lon-" + i).innerText = lastLon.toFixed(6);
+            document.getElementById("gnss-alt-" + i).innerText = lastAlt.toFixed(1);
+          }
+          else if (choice === "GNSS_chart" && gnssChart) {
+            gnssChart.style.display = "block";
+          }
+          else if(choice == "IMU_chart") {
+            for(let k =1; k <=4; k++){
+              const imuObj = document.getElementById("imuChart"+k);
+              if(k !==i){
+                imuObj.innerHTML = "";
+                imuObj.style.display = "none"
+              }
+            }
+            imuChart.innerHTML = ""
+            imuChart.style.display = "block";
+            imuChartObjects("imuChart"+i)
+            // if(!imuChart.hasChildNodes()){
+            //   imuChartObjects("imuChart"+i)
+            // }
+          }
+          else if (choice === "BrakeThrottle") {
+            brakeThrottleChart.style.display = "block";
+          }
+          // else if (choice === "SteerAngle") {
+          //   steerAngleContainer.style.display = "block";
+          // }
+          // else if (choice === "SpeedRuntime") {
+          //   carspeedContainer.style.display = "block";
+          // }
+          // else if (choice === "3dlidar") {
+          //   lidar3dContainer.style.display = "block";
+          // }
+          else if (choice === "OnlineMap") {
+            onlineGNSSChartObject(i);
+          }
+          else {}
+        });
+      }
+
+
+      var loopback_subscription = new ROSLIB.Topic({
+        ros: ros,
+        name: "/loopback_logging",
+        messageType: "std_msgs/String",
+      });
+      loopback_subscription.subscribe(function (message) {
+        if (message.data) {
+          console.log("e"+ message.data);
+          document.getElementById("loopback_traffic_light").setAttribute("class", message.data === "publishing: True" ? "loopback_traffic_red" : "loopback_traffic_green");
+        }
+      });
+
+      //these two for loops allow the website to keep the sensors that use has displayed either when the user starts the website
+      // or when the user refreshes
+      for (let i = 1; i <= 4; i++) {
+        const dd = document.getElementById("dropdown" + i);
+        const v = localStorage.getItem("dropdown" + i);
+        if (v) {
+          dd.value = v;
+          dd.dispatchEvent(new Event("change"));
+        }
+      }
+
+      for (let i = 1; i <= 4; i++) {
+        const dd = document.getElementById("dropdown" + i);
+        dd.addEventListener("change", () => {
+          localStorage.setItem("dropdown" + i, dd.value);
+        });
+      }
+
+      onlineGNSSChartObject(5)
+
+    });
+
+    document.getElementById('start').addEventListener('click', function () {
+      fetch('/start_ros', {
+        method: 'POST',
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert('ROS nodes started successfully! Page will refresh in 2 seconds...');
+          setTimeout(() => {
+            location.reload();
+          }, 3000);
+        } else {
+          alert('Error starting ROS nodes: ' + data.message);
+          setTimeout(() => {
+            location.reload();
+          }, 3000);
+        }
+      })
+      .catch(error => {
+        alert('Error: ' + error);
+        setTimeout(() => {
+          location.reload();
+        }, 3000);
+      });
+    });
+
+    
+
+    document.getElementById('start_bridge').addEventListener('click', function () {
+      fetch('/start_rosbridge', {
+        method: 'POST',
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert('ROSbridge started successfully!');
+        } else {
+          alert('Error starting ROS nodes: ' + data.message);
+        }
+      })
+      .catch(error => {
+        alert('Error: ' + error);
+      });
+    });
+  </script>
+
+  <div id="replayMessage" style="display: none;">
+    📂 Please upload a folder containing the 5 required sensor rosbags.
+  </div>
+</body>
+
+</html>

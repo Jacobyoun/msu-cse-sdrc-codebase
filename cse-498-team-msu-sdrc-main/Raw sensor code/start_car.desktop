@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Start Car
+Comment=Run a Python script from the desktop
+Exec=/home/younge32/start_car/start_script.sh
+Icon=/home/younge32/start_car/f1tenth.png
+Terminal=true
+Type=Application
+Categories=Utility;
+

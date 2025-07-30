@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  #name for this container
+  flask-app:
+    container_name: Dashboard
+    #indicates `Dockerfile-dev` should be used for local instantiations
+    build:
+        context: .
+        dockerfile: Dockerfile-dev
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app

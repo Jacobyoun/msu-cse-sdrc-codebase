@@ -1,0 +1,6 @@
+flask
+gunicorn
+Flask-Failsafe
+numpy
+matplotlib
+bokeh

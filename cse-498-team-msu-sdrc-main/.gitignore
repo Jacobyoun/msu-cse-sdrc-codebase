@@ -1,0 +1,7 @@
+__pycache__/
+venv/
+venv310/
+Local Website/replay_sessions/
+Local Website/flask_app/replay_sessions/
+ROS2 Code/build/
+ROS2 Code/log/

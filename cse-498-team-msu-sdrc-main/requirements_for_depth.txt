@@ -1,0 +1,7 @@
+numpy==2.2.4
+opencv-python==4.11.0.86
+pyrealsense2==2.55.1.6486
+pynmeagps>=2.0.0
+matplotlib>=3.0.0
+rplidar>=1.0.0
+hidapi>=0.10.1
